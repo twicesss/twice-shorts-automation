@@ -1,36 +1,36 @@
 
-name: TWICE Shorts Automation - Test
+name: TWICE Shorts Discovery
 
 on:
   workflow_dispatch:
-  schedule:
-    # Runs daily at 12:30 UTC (6:00 PM IST)
-    - cron: "30 12 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  pipeline-test:
-    name: Test automation environment
+  discover:
+    name: Discover TWICE uploads and generate ideas
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Display pipeline information
-        run: |
-          echo "TWICE Shorts automation initialized."
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Run date: $(date -u)"
-          echo "Pipeline status: TEST SUCCESSFUL"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      
-      - name: Install and verify FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version | head -n 1
+      - name: Run discovery engine
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/discover.py
 
+      - name: Upload discovery report
+        uses: actions/upload-artifact@v4
+        with:
+          name: twice-discovery-report
+          path: reports/discovery.json
+          if-no-files-found: error
+          retention-days: 7
