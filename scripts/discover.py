@@ -133,9 +133,29 @@ Rules:
         method="POST",
     )
 
-    try:
-        with urllib.request.urlopen(request, timeout=90) as response:
-            result = json.loads(response.read())
+    
+    import time
+
+    for attempt in range(1, 4):
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                result = json.loads(response.read())
+            break
+        except TimeoutError:
+            if attempt == 3:
+                raise RuntimeError(
+                    "Gemini timed out after 3 attempts."
+                )
+            print(f"Gemini timed out. Retrying ({attempt}/3)...")
+            time.sleep(10 * attempt)
+        except urllib.error.URLError as error:
+            if attempt == 3:
+                raise RuntimeError(
+                    f"Gemini connection failed: {error}"
+                ) from error
+            print(f"Temporary connection error. Retrying ({attempt}/3)...")
+            time.sleep(10 * attempt)
+
 
     except urllib.error.HTTPError as error:
         details = error.read().decode("utf-8", errors="replace")
