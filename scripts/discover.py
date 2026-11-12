@@ -64,8 +64,10 @@ def get_latest_videos():
     return videos
 
 
+
 def research_with_gemini(videos):
     api_key = os.environ.get("GEMINI_API_KEY")
+
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY secret is missing.")
 
@@ -77,20 +79,20 @@ Analyze these recent public uploads from TWICE's official channel.
 VIDEO METADATA:
 {json.dumps(videos, ensure_ascii=False, indent=2)}
 
-Return valid JSON only, using this structure:
+Return valid JSON only with this structure:
 
 {{
   "research_summary": "Short summary",
   "ideas": [
     {{
-      "source_video_id": "ID from supplied metadata",
-      "source_title": "Exact supplied title",
+      "source_video_id": "Video ID",
+      "source_title": "Exact title",
       "shorts_concept": "Original creative concept",
       "hook": "Opening hook",
-      "editing_direction": "Suggested editing approach",
+      "editing_direction": "Suggested editing",
       "caption_ideas": ["Caption 1", "Caption 2"],
       "narration": "Optional original narration",
-      "original_value": "How this adds meaningful creative value",
+      "original_value": "Meaningful creative addition",
       "evidence_status": "metadata_only",
       "timestamp": null
     }}
@@ -99,13 +101,10 @@ Return valid JSON only, using this structure:
 
 Rules:
 - Generate at most 5 ideas.
-- Use only the supplied video metadata.
-- Do not invent events, dialogue, member actions or timestamps.
+- Only use supplied metadata.
+- Never invent events, dialogue or timestamps.
 - Do not claim to have watched the videos.
-- Keep concepts funny, entertaining and suitable for K-pop fans.
-- Suggest original commentary or storytelling, not simple reposts.
-- Use only source video IDs supplied above.
-- If metadata is insufficient, say so explicitly.
+- Suggest original commentary and storytelling.
 """
 
     endpoint = (
@@ -129,20 +128,17 @@ Rules:
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
+            "x-goog-api-key": api_key
         },
-        method="POST",
+        method="POST"
     )
 
-    
-    import time
+    result = None
 
-    for attempt in range(1, 4):
-        
     for attempt in range(1, 4):
         try:
             with urllib.request.urlopen(
-                request, timeout=180
+                request, timeout=120
             ) as response:
                 result = json.loads(response.read())
             break
@@ -153,30 +149,41 @@ Rules:
             )
 
             if error.code in (429, 500, 502, 503, 504) and attempt < 3:
-                print(
-                    f"Gemini HTTP {error.code}. "
-                    f"Retrying ({attempt}/3)..."
-                )
+                print(f"Gemini HTTP {error.code}. Retry {attempt}/3.")
                 time.sleep(10 * attempt)
                 continue
 
             raise RuntimeError(
-                f"Gemini API returned HTTP {error.code}: "
-                f"{details[:1500]}"
+                f"Gemini API HTTP {error.code}: {details[:1500]}"
             ) from error
 
         except (TimeoutError, urllib.error.URLError) as error:
             if attempt == 3:
                 raise RuntimeError(
-                    f"Gemini connection failed after 3 attempts: {error}"
+                    f"Gemini connection failed: {error}"
                 ) from error
 
-            print(f"Connection issue. Retrying ({attempt}/3)...")
+            print(f"Connection issue. Retry {attempt}/3.")
             time.sleep(10 * attempt)
 
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    if result is None:
+        raise RuntimeError("Gemini returned no response.")
 
-    return json.loads(text)
+    try:
+        response_text = result["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError) as error:
+        raise RuntimeError(
+            f"Unexpected Gemini response: {json.dumps(result)[:1500]}"
+        ) from error
+
+    response_text = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        response_text.strip()
+    )
+
+    return json.loads(response_text)
+
 
 
 def main():
