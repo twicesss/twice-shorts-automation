@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -137,33 +138,42 @@ Rules:
     import time
 
     for attempt in range(1, 4):
+        
+    for attempt in range(1, 4):
         try:
-            with urllib.request.urlopen(request, timeout=180) as response:
+            with urllib.request.urlopen(
+                request, timeout=180
+            ) as response:
                 result = json.loads(response.read())
             break
-        except TimeoutError:
-            if attempt == 3:
-                raise RuntimeError(
-                    "Gemini timed out after 3 attempts."
+
+        except urllib.error.HTTPError as error:
+            details = error.read().decode(
+                "utf-8", errors="replace"
+            )
+
+            if error.code in (429, 500, 502, 503, 504) and attempt < 3:
+                print(
+                    f"Gemini HTTP {error.code}. "
+                    f"Retrying ({attempt}/3)..."
                 )
-            print(f"Gemini timed out. Retrying ({attempt}/3)...")
-            time.sleep(10 * attempt)
-        except urllib.error.URLError as error:
+                time.sleep(10 * attempt)
+                continue
+
+            raise RuntimeError(
+                f"Gemini API returned HTTP {error.code}: "
+                f"{details[:1500]}"
+            ) from error
+
+        except (TimeoutError, urllib.error.URLError) as error:
             if attempt == 3:
                 raise RuntimeError(
-                    f"Gemini connection failed: {error}"
+                    f"Gemini connection failed after 3 attempts: {error}"
                 ) from error
-            print(f"Temporary connection error. Retrying ({attempt}/3)...")
+
+            print(f"Connection issue. Retrying ({attempt}/3)...")
             time.sleep(10 * attempt)
 
-
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Gemini API returned HTTP {error.code}: {details[:1500]}"
-        ) from error
-
-    text = result["candidates"][0]["content"]["parts"][0]["text"]
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
     return json.loads(text)
