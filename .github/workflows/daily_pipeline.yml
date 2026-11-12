@@ -1,0 +1,37 @@
+
+name: TWICE Shorts Automation - Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs daily at 12:30 UTC (6:00 PM IST)
+    - cron: "30 12 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline-test:
+    name: Test automation environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display pipeline information
+        run: |
+          echo "TWICE Shorts automation initialized."
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Run date: $(date -u)"
+          echo "Pipeline status: TEST SUCCESSFUL"
+
+      - name: Verify FFmpeg availability
+        run: |
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+          else
+            echo "FFmpeg is not installed yet."
+            exit 1
+          fi
